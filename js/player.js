@@ -19,6 +19,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite{
 
         this.state='stopped';
         this.previous_state=this.state;
+
+        this.lives = 3;
     }
 
     setOnLadder(value){
@@ -100,5 +102,17 @@ export class Player extends Phaser.Physics.Arcade.Sprite{
                 this.setFrame(this.initialFrame);
             }
         }
+    }
+
+    hit(){
+        this.lives--;
+    }
+
+    isDead(){
+        return this.lives === 0;
+    }
+
+    getLives(){
+        return this.lives;
     }
 }

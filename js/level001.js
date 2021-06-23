@@ -1,4 +1,5 @@
 import { Player } from "./player.js";
+import {Bug} from "./bug.js";
 
 let levelData=[
     {
@@ -35,18 +36,37 @@ let levelData=[
 
 let snailData=[
     {
-        x:192,
-        y:1568,
+        x:1154,
+        y:1760,
         key:'snail',
         frame: 0,
-        animations:'snail-walking',
+        animation:'snailwalking',
         min:{
-            x: 192,
-            y:1568
+            x: 1154,
+            y:1760
         },
         max:{
-            x: 640,
-            y: 1568
+            x: 1510,
+            y: 1760
+        },
+        velocity: 10
+    }
+]
+
+let ladybugsData = [
+    {
+        x:1154,
+        y:1760,
+        key:'ladybug',
+        frame: 0,
+        animation:'ladybugflying',
+        min:{
+            x: 1154,
+            y:1760
+        },
+        max:{
+            x: 1510,
+            y: 1760
         },
         velocity: 10
     }
@@ -63,6 +83,10 @@ export class Level001 extends Phaser.Scene{
         this.input.on('pointerdown',(pointer)=>{
             console.log(`${pointer.x},${pointer.y}`);
         })
+
+        this.snailsToCatch=0;
+        this.success=false;
+        this.hearts=[];
     }
 
     create(){
@@ -77,16 +101,21 @@ export class Level001 extends Phaser.Scene{
         });
 
         this.snails= this.physics.add.group();
+        this.ladybugs = this.physics.add.group({
+            allowGravity:false
+        });
 
         this.add.image(0,0,'background').setOrigin(0).setScale(2);
 
         this.createPlatforms();
+
         this.createLadder();
 
-        this.snail=this.add.sprite(1154,1760,'snail',0).setOrigin(0);
-        this.snail.anims.play('snail-walking');
+        this.createSnails();
 
-        this.snails.add(this.snail);
+        this.createLadybugs();
+
+        this.createExit();
 
         this.player = new Player(
             this,
@@ -95,12 +124,18 @@ export class Level001 extends Phaser.Scene{
             'player',6
         );
 
-        
+        this.createAudioSources();
 
         this.physics.add.collider(this.player,this.platforms);
         this.physics.add.collider(this.snails,this.platforms);
         this.physics.add.overlap(this.player,this.ladders,this.onLadder,null,this);
         this.physics.add.overlap(this.player,this.snails,this.onSnail,null,this);
+        this.physics.add.overlap(this.player,this.ladybugs,this.onLadybug,null,this);
+        this.physics.add.overlap(this.player,this.flag,this.onFlag,null,this);
+
+        this.snailsToCatch = snailData.length;
+
+        this.prepareHUD();
 
     }
 
@@ -134,16 +169,102 @@ export class Level001 extends Phaser.Scene{
         this.ladders.add(ladderTop);
     }
 
+    createSnails(){
+        snailData.forEach( snail=>{
+            let newSnail = new Bug (this,snail);
+            this.snails.add(newSnail);
+        }); 
+    }
+
+    createLadybugs(){
+        ladybugsData.forEach( ladybug=>{
+            let newLadybug = new Bug (this,ladybug);
+            this.ladybugs.add(newLadybug);
+        });
+    }
+
+    createAudioSources(){
+        this.catch = this.sound.add('ding',{loop:false});
+        this.punch = this.sound.add('punch',{loop:false});
+        this.tada = this.sound.add('tada',{loop:false});
+    }
+
+    createExit(){
+        this.flag= this.add.sprite(
+            this.game.config.width -128,
+            this.game.config.height - 128,
+            'objects',0
+        ).setOrigin(0);
+
+        this.physics.add.existing(this.flag);
+        this.flag.body.allowGravity=false;
+        this.flag.body.setImmovable(false);
+
+        this.sign= this.add.image(
+            this.game.config.width - 276,
+            this.game.config.height -128,
+            'objects',5
+        ).setOrigin(0);
+    }
+
+    prepareHUD(){
+        let nLives= this.player.getLives();
+        for(let i =0; i <nLives; ++i){
+            this.hearts.push(
+                this.add.image(128+i*128,128,'full_heart')
+            );
+        }
+    }
+
+    updateHUD(){
+        let availableLives= this.player.getLives();
+        for(let i = this.hearts.length - 1; i >= availableLives; --i){
+            this.hearts[i].setTexture('empty_heart');
+        }
+
+    }
+
     onLadder(player,ladder){
         this.player.setOnLadder(true);
     }
 
     onSnail(player,snail){
-        console.log('dont be creepy');
+        snail.destroy();
+        this.catch.play();
+        this.snailsToCatch --;
+        if(this.snailsToCatch===0){
+            this.tada.play();
+            this.flag.anims.play('wave');
+            this.success =true;
+        }
+    }
+
+    onLadybug(player,ladybug){
+        player.hit();
+        this.punch.play();
+        if(!player.isDead()){
+            player.setPosition(
+                this.game.config.width*0.5,
+                this.game.config.height*0.5, 
+            )
+        }else{
+            this.scene.restart();
+        }
+    }
+
+    onFlag(player,flag){
+        if(this.success){
+            console.log('oh yeah');
+        }
     }
 
     update(time){
        this.player.update(time);
+       this.snails.getChildren().forEach(snail=> snail.update(time));
+       this.ladybugs.getChildren().forEach(ladybug=> ladybug.update(time));
        this.player.setOnLadder(false);
+
+       console.log (this.player.getLives());
+       this.updateHUD();
     }
 }
